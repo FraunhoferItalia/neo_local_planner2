@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(neo_local_planner)
+project(neo_local_planner2)
 
 find_package(ament_cmake REQUIRED)
 find_package(nav2_common REQUIRED)
@@ -35,7 +35,7 @@ set(dependencies
   tf2_eigen
 )
 
-set(library_name neo_local_planner)
+set(library_name neo_local_planner2)
 
 add_library(${library_name} SHARED
         src/NeoLocalPlanner.cpp)
@@ -49,7 +49,7 @@ install(DIRECTORY include/
 )
 
 install(FILES 
-  neo_local_planner_plugin.xml
+  neo_local_planner2_plugin.xml
   DESTINATION share
   )
 
@@ -63,7 +63,6 @@ ament_export_include_directories(include)
 ament_export_libraries(${library_name})
 ament_export_dependencies(${dependencies})
 
-pluginlib_export_plugin_description_file(nav2_core neo_local_planner_plugin.xml)
+pluginlib_export_plugin_description_file(nav2_core neo_local_planner2_plugin.xml)
 
 ament_package()
-
