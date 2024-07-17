@@ -32,20 +32,17 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-#ifndef INCLUDE_NEOLOCALPLANNER_H_
-#define INCLUDE_NEOLOCALPLANNER_H_
+#ifndef NEOLOCALPLANNER_HPP_
+#define NEOLOCALPLANNER_HPP_
 
-#include <tf2_ros/buffer.h>
-// #include <dynamic_reconfigure/server.h>
-#include <angles/angles.h>
-#include "rclcpp/rclcpp.hpp"
-#include <nav_msgs/msg/path.hpp>
-#include <nav_msgs/msg/odometry.hpp>
 #include <string>
 #include <vector>
 #include <memory>
 #include <algorithm>
 #include <mutex>
+
+#include <nav_msgs/msg/path.hpp>
+#include <nav_msgs/msg/odometry.hpp>
 
 #include "nav2_core/controller.hpp"
 #include "nav2_util/geometry_utils.hpp"
@@ -56,12 +53,14 @@
 #include "nav2_util/odometry_utils.hpp"
 #include "geometry_msgs/msg/pose2_d.hpp"
 #include "geometry_msgs/msg/vector3_stamped.hpp"
+#include "tf2_ros/buffer.h"
+#include "angles/angles.h"
 
+namespace neo_local_planner2
+{
 
-namespace neo_local_planner2 {
-
-class NeoLocalPlanner : public nav2_core::Controller {
-
+class NeoLocalPlanner : public nav2_core::Controller
+{
 public:
   /**
    * @brief Constructor for nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController
@@ -139,108 +138,106 @@ public:
   rcl_interfaces::msg::SetParametersResult
   dynamicParametersCallback(std::vector<rclcpp::Parameter> parameters);
 
-	void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg);
+  void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg);
 
-	bool reset_lastvel(nav_msgs::msg::Path m_global_plan, nav_msgs::msg::Path plan);
+  bool reset_lastvel(nav_msgs::msg::Path m_global_plan, nav_msgs::msg::Path plan);
 
 private:
-	std::shared_ptr<tf2_ros::Buffer> tf_;
-	std::string plugin_name_;
-	std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
-	nav2_costmap_2d::Costmap2D * costmap_;
-	rclcpp::Logger logger_ {rclcpp::get_logger("NeoLocalPlanner")};
-	tf2_ros::Buffer* m_tf = 0;
-	nav2_costmap_2d::Costmap2DROS* m_cost_map;
-	nav_msgs::msg::Path m_global_plan;
-	rclcpp::Clock::SharedPtr clock_;
+  std::shared_ptr<tf2_ros::Buffer> tf_;
+  std::string plugin_name_;
+  std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
+  nav2_costmap_2d::Costmap2D * costmap_;
+  rclcpp::Logger logger_ {rclcpp::get_logger("NeoLocalPlanner")};
+  tf2_ros::Buffer * m_tf = 0;
+  nav2_costmap_2d::Costmap2DROS * m_cost_map;
+  nav_msgs::msg::Path m_global_plan;
+  rclcpp::Clock::SharedPtr clock_;
 
-	std::mutex m_mutex;
-	nav_msgs::msg::Odometry::SharedPtr m_odometry;
+  std::mutex m_mutex;
+  nav_msgs::msg::Odometry::SharedPtr m_odometry;
 
-	rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr m_odom_sub;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr m_odom_sub;
   rclcpp_lifecycle::LifecycleNode::WeakPtr node_;
-	rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr dyn_params_handler_;
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr dyn_params_handler_;
   std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<nav_msgs::msg::Path>> m_local_plan_pub;
 
-	std::string m_global_frame = "map";
-	std::string m_local_frame;
-	std::string m_base_frame;
+  std::string m_global_frame = "map";
+  std::string m_local_frame;
+  std::string m_base_frame;
 
-	enum state_t {
-		STATE_IDLE,
-		STATE_TRANSLATING,
-		STATE_ROTATING,
-		STATE_ADJUSTING,
-		STATE_TURNING,
-		STATE_STUCK
-	};
+  enum state_t
+  {
+    STATE_IDLE,
+    STATE_TRANSLATING,
+    STATE_ROTATING,
+    STATE_ADJUSTING,
+    STATE_TURNING,
+    STATE_STUCK
+  };
 
-	state_t m_state = state_t::STATE_IDLE;
+  state_t m_state = state_t::STATE_IDLE;
 
-	rclcpp::Time m_last_time;
-	rclcpp::Time m_first_goal_reached_time;
+  rclcpp::Time m_last_time;
+  rclcpp::Time m_first_goal_reached_time;
 
-	bool m_is_goal_reached = false;
-	uint64_t m_update_counter = 0;
-	double m_last_control_values[3] = {};
-	geometry_msgs::msg::Twist m_last_cmd_vel;
+  bool m_is_goal_reached = false;
+  uint64_t m_update_counter = 0;
+  double m_last_control_values[3] = {};
+  geometry_msgs::msg::Twist m_last_cmd_vel;
 
 protected:
-	double acc_lim_x = 0;
-	double acc_lim_y = 0;
-	double acc_lim_theta = 0;
-	double acc_lim_trans = 0;
-	double min_vel_x = 0;
-	double max_vel_x = 0;
-	double min_vel_y = 0;
-	double max_vel_y = 0;
-	double min_rot_vel = 0;
-	double max_rot_vel = 0;
-	double min_trans_vel = 0;
-	double max_trans_vel = 0;
-	double min_vel_theta = 0;
-	double max_vel_theta = 0;
-	double min_vel_trans = 0;
-	double max_vel_trans = 0;
-	double rot_stopped_vel = 0; 
-	double theta_stopped_vel = 0;
-	double trans_stopped_vel = 0;
-	double yaw_goal_tolerance = 0;
-	double xy_goal_tolerance = 0;
-	double goal_tune_time = 0;
-	bool differential_drive = false;
-	bool constrain_final = false;
-	double start_yaw_error = 0.0;
-	double lookahead_time = 0.0;
-	double m_lookahead_dist = 0.0;
-	double pos_x_gain = 0.0;
-	double pos_y_gain = 0.0;
-	double pos_y_yaw_gain = 0.0;
-	double yaw_gain = 0.0;
-	double static_yaw_gain = 0.0;
-	double cost_x_gain = 0.0;
-	double cost_y_gain = 0.0;
-	double cost_y_yaw_gain = 0.0;
-	double m_cost_y_lookahead_dist = 0.0;
-	double cost_y_lookahead_time = 0.0;
-	double cost_yaw_gain = 0.0;
-	double low_pass_gain = 0.0;
-	double max_cost = 0.0;
-	double max_curve_vel = 0.0;
-	double max_goal_dist = 0.0;
-	double max_backup_dist = 0.0;
-	double min_stop_dist = 0.0;
-	double emergency_acc_lim_x = 0.0;
-	bool enable_software_stop = false;
-	bool m_reset_lastvel = false;
-	bool m_allow_reversing = false;
-	double m_robot_direction = 1.0;
-	std::string odom_topic = "odom";
-	std::string local_plan_topic = "local_plan";
-	int count = 0;
-	
+  double acc_lim_x = 0;
+  double acc_lim_y = 0;
+  double acc_lim_theta = 0;
+  double acc_lim_trans = 0;
+  double min_vel_x = 0;
+  double max_vel_x = 0;
+  double min_vel_y = 0;
+  double max_vel_y = 0;
+  double min_rot_vel = 0;
+  double max_rot_vel = 0;
+  double min_trans_vel = 0;
+  double max_trans_vel = 0;
+  double min_vel_theta = 0;
+  double max_vel_theta = 0;
+  double min_vel_trans = 0;
+  double max_vel_trans = 0;
+  double rot_stopped_vel = 0;
+  double theta_stopped_vel = 0;
+  double trans_stopped_vel = 0;
+  double yaw_goal_tolerance = 0;
+  double xy_goal_tolerance = 0;
+  double goal_tune_time = 0;
+  bool differential_drive = false;
+  double start_yaw_error = 0.0;
+  double lookahead_time = 0.0;
+  double m_lookahead_dist = 0.0;
+  double pos_x_gain = 0.0;
+  double pos_y_gain = 0.0;
+  double pos_y_yaw_gain = 0.0;
+  double yaw_gain = 0.0;
+  double static_yaw_gain = 0.0;
+  double cost_x_gain = 0.0;
+  double cost_y_gain = 0.0;
+  double cost_y_yaw_gain = 0.0;
+  double m_cost_y_lookahead_dist = 0.0;
+  double cost_y_lookahead_time = 0.0;
+  double cost_yaw_gain = 0.0;
+  double low_pass_gain = 0.0;
+  double max_cost = 0.0;
+  double max_curve_vel = 0.0;
+  double max_goal_dist = 0.0;
+  double max_backup_dist = 0.0;
+  double min_stop_dist = 0.0;
+  double emergency_acc_lim_x = 0.0;
+  bool m_reset_lastvel = false;
+  bool m_allow_reversing = false;
+  double m_robot_direction = 1.0;
+  std::string odom_topic = "odom";
+  std::string local_plan_topic = "local_plan";
+  int count = 0;
 };
 
-} // neo_local_planner2
+}  // namespace neo_local_planner2
 
-#endif /* INCLUDE_NEOLOCALPLANNER_H_ */
+#endif  // NEOLOCALPLANNER_HPP_
