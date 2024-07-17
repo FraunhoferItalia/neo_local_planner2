@@ -1,15 +1,10 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-    <name>neo_local_planner</name>
+    <name>neo_local_planner2</name>
     <version>1.0.0</version>
     <description>
-
-        This package provides a spline based implementation to local robot navigation on a plane.
-
-		This package's ROS wrapper adheres to the
-        BaseLocalPlanner interface specified in the <a href="http://wiki.ros.org/nav_core">nav_core</a> package.
-
+        Emprical local planner based on pure-pursuit
     </description>
     <author>Max Wittal</author>
     <author>wittal@neobotix.de</author>

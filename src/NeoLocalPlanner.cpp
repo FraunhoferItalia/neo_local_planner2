@@ -46,7 +46,7 @@
 #include <tf2_eigen/tf2_eigen.hpp>
 
 using rcl_interfaces::msg::ParameterType;
-namespace neo_local_planner {
+namespace neo_local_planner2 {
 
 tf2::Quaternion createQuaternionFromYaw(double yaw)
 {
@@ -946,6 +946,6 @@ void NeoLocalPlanner::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
 
 }
 
-// neo_local_planner
+// neo_local_planner2
 
-PLUGINLIB_EXPORT_CLASS(neo_local_planner::NeoLocalPlanner, nav2_core::Controller)
+PLUGINLIB_EXPORT_CLASS(neo_local_planner2::NeoLocalPlanner, nav2_core::Controller)

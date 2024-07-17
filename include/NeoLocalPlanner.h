@@ -58,7 +58,7 @@
 #include "geometry_msgs/msg/vector3_stamped.hpp"
 
 
-namespace neo_local_planner {
+namespace neo_local_planner2 {
 
 class NeoLocalPlanner : public nav2_core::Controller {
 
@@ -241,7 +241,6 @@ protected:
 	
 };
 
-
-} // neo_local_planner
+} // neo_local_planner2
 
 #endif /* INCLUDE_NEOLOCALPLANNER_H_ */
