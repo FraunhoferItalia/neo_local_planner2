@@ -802,7 +802,7 @@ NeoLocalPlanner::dynamicParametersCallback(
   return result;
 }
 
-bool NeoLocalPlanner::reset_lastvel(nav_msgs::msg::Path m_global_plan, nav_msgs::msg::Path plan)
+bool NeoLocalPlanner::reset_lastvel(nav_msgs::msg::Path plan)
 {
   if (m_global_plan.poses.empty() ||
     plan.poses.back().pose == m_global_plan.poses.back().pose)
@@ -820,7 +820,7 @@ bool NeoLocalPlanner::reset_lastvel(nav_msgs::msg::Path m_global_plan, nav_msgs:
 
 void NeoLocalPlanner::setPlan(const nav_msgs::msg::Path & plan)
 {
-  m_reset_lastvel = reset_lastvel(m_global_plan, plan);
+  m_reset_lastvel = reset_lastvel(plan);
   m_global_plan = plan;
 }
 

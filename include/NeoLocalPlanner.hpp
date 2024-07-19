@@ -140,7 +140,7 @@ public:
 
   void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg);
 
-  bool reset_lastvel(nav_msgs::msg::Path m_global_plan, nav_msgs::msg::Path plan);
+  bool reset_lastvel(nav_msgs::msg::Path plan);
 
 private:
   std::shared_ptr<tf2_ros::Buffer> tf_;
