@@ -221,6 +221,18 @@ geometry_msgs::msg::TwistStamped NeoLocalPlanner::computeVelocityCommands(
       logger_, *clock_, 1.0,
       "lookupTransform(m_base_frame, m_global_frame) failed");
   }
+  
+  geometry_msgs::msg::PoseStamped local_goal_pose;
+    try {
+      tf_->transform(position, local_goal_pose, "map", transform_tolerance_);
+    } catch (tf2::TransformException & ex) {
+    std::cout<<"error"<<std::endl;
+  }
+  auto global_goal_pose = m_global_plan.poses.back();
+  double dist_goal = nav2_util::geometry_utils::euclidean_distance(
+    local_goal_pose.pose.position,
+    global_goal_pose.pose.position
+    );
 
   // transform plan to local frame (odom)
   std::vector<tf2::Transform> local_plan;
@@ -339,10 +351,12 @@ geometry_msgs::msg::TwistStamped NeoLocalPlanner::computeVelocityCommands(
     const double delta_time = fabs(start_vel_x) > trans_stopped_vel ? (delta_move / fabs(
         start_vel_x)) : 0;
 
-    tf2::Transform pose = actual_pose;
+    tf2::Transform pose;
+    tf2::fromMsg(position.pose, pose);
     tf2::Transform last_pose = pose;
+    bool in_max_lookahead_dist = false;
 
-    while (obstacle_dist < 10) {
+    while (!in_max_lookahead_dist) {
       const double cost = compute_max_line_cost(costmap_, last_pose.getOrigin(), pose.getOrigin());
 
       bool is_contained = false;
@@ -368,6 +382,14 @@ geometry_msgs::msg::TwistStamped NeoLocalPlanner::computeVelocityCommands(
         tmp.pose.orientation.w = tmp1.rotation.w;
         local_path.poses.push_back(tmp);
       }
+      // Cropping the local plan to the specified lookahead distance
+      if (obstacle_dist >= lookahead_dist ||
+           m_state == state_t::STATE_ROTATING ||
+           obstacle_dist >= dist_goal
+        ) {
+        in_max_lookahead_dist = true;
+      }
+
       if (!is_contained || have_obstacle) {
         break;
       }
@@ -437,6 +459,20 @@ geometry_msgs::msg::TwistStamped NeoLocalPlanner::computeVelocityCommands(
     yaw_error = angles::shortest_angular_distance(actual_yaw + 3.14, target_yaw);
   }
 
+  // For debugging
+  m_carrot_pose.header = position.header;
+  m_carrot_pose.point.x = target_pos.x();
+  m_carrot_pose.point.y = target_pos.y();
+
+  m_lookahead_point_pub->publish(m_carrot_pose);
+
+  // Check if the the robot footprint is in obstacle
+  double footprint_cost = collision_checker_->footprintCostAtPose(
+    position.pose.position.x,
+    position.pose.position.y,
+    tf2::getYaw(position.pose.orientation),
+    costmap_ros_->getRobotFootprint());
+
   // Condition to check for a spotaneous change in the goal
   if (m_reset_lastvel && speed.linear.x != 0.0 &&
     speed.linear.y != 0.0 && speed.angular.z != 0.0 &&
@@ -448,7 +484,7 @@ geometry_msgs::msg::TwistStamped NeoLocalPlanner::computeVelocityCommands(
   }
 
   // compute errors
-  const double goal_dist = (local_plan.back().getOrigin() - actual_pos).length();
+  const double goal_dist = (local_plan.back().getOrigin() - actual_pos).length(); //check
   const tf2::Vector3 pos_error =
     tf2::Transform(createQuaternionFromYaw(actual_yaw), actual_pos).inverse() * target_pos;
 
@@ -1024,6 +1060,9 @@ void NeoLocalPlanner::configure(
   // Setting up the costmap variables
   costmap_ros_ = costmap_ros;
   costmap_ = costmap_ros_->getCostmap();
+  collision_checker_ = std::make_unique<nav2_costmap_2d::
+      FootprintCollisionChecker<nav2_costmap_2d::Costmap2D *>>(costmap_);
+  collision_checker_->setCostmap(costmap_);
   tf_ = tf;
   plugin_name_ = name;
   logger_ = node->get_logger();
@@ -1046,6 +1085,11 @@ void NeoLocalPlanner::configure(
     rclcpp::SystemDefaultsQoS(),
     std::bind(&NeoLocalPlanner::odomCallback, this, std::placeholders::_1));
   m_local_plan_pub = node->create_publisher<nav_msgs::msg::Path>(local_plan_topic, 1);
+
+  m_lookahead_point_pub = node->create_publisher<geometry_msgs::msg::PointStamped>(
+    "goal_pose",
+    1
+  );
 }
 
 void NeoLocalPlanner::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
