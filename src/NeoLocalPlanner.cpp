@@ -427,7 +427,7 @@ geometry_msgs::msg::TwistStamped NeoLocalPlanner::computeVelocityCommands(
       } else {
         pose = tf2::Transform(
           createQuaternionFromYaw(tf2::getYaw(pose.getRotation()) + start_yawrate * delta_time),
-          pose * tf2::Vector3(start_vel_x * delta_time, start_vel_y * delta_time, 0));
+          pose * tf2::Vector3(m_robot_direction * start_vel_x * delta_time, start_vel_y * delta_time, 0));
       }
 
       // Interpolating the spline further
