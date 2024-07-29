@@ -38,6 +38,7 @@
 #include "nav2_util/node_utils.hpp"
 #include "nav2_util/line_iterator.hpp"
 #include "nav2_core/goal_checker.hpp"
+#include "nav2_core/controller_exceptions.hpp"
 #include "pluginlib/class_list_macros.hpp"
 #include <tf2_eigen/tf2_eigen.hpp>
 #include <tf2_sensor_msgs/tf2_sensor_msgs.hpp>
@@ -46,6 +47,15 @@
 using rcl_interfaces::msg::ParameterType;
 namespace neo_local_planner2
 {
+
+double createYawFromQuat(const geometry_msgs::msg::Quaternion & orientation)
+{
+  tf2::Quaternion q(orientation.x, orientation.y, orientation.z, orientation.w);
+  tf2::Matrix3x3 m(q);
+  double roll, pitch, yaw;
+  m.getRPY(roll, pitch, yaw);
+  return yaw;
+}
 
 tf2::Quaternion createQuaternionFromYaw(double yaw)
 {
@@ -221,18 +231,20 @@ geometry_msgs::msg::TwistStamped NeoLocalPlanner::computeVelocityCommands(
       logger_, *clock_, 1.0,
       "lookupTransform(m_base_frame, m_global_frame) failed");
   }
-  
+
   geometry_msgs::msg::PoseStamped local_goal_pose;
-    try {
-      tf_->transform(position, local_goal_pose, "map", transform_tolerance_);
-    } catch (tf2::TransformException & ex) {
-    std::cout<<"error"<<std::endl;
+  try {
+    tf_->transform(position, local_goal_pose, "map", transform_tolerance_);
+  } catch (tf2::TransformException & ex) {
+    RCLCPP_WARN_THROTTLE(
+      logger_, *clock_, 1.0,
+      "Transforming robot pose from odom to map frame failed");
   }
   auto global_goal_pose = m_global_plan.poses.back();
   double dist_goal = nav2_util::geometry_utils::euclidean_distance(
     local_goal_pose.pose.position,
     global_goal_pose.pose.position
-    );
+  );
 
   // transform plan to local frame (odom)
   std::vector<tf2::Transform> local_plan;
@@ -346,10 +358,10 @@ geometry_msgs::msg::TwistStamped NeoLocalPlanner::computeVelocityCommands(
   bool have_obstacle = false;
   double obstacle_dist = 0;
   double obstacle_cost = 0;
+  double debug_yaw = 0.0;
   {
-    const double delta_move = 0.05;
-    const double delta_time = fabs(start_vel_x) > trans_stopped_vel ? (delta_move / fabs(
-        start_vel_x)) : 0;
+    double delta_move = 0.0;
+    const double delta_time = 0.01;
 
     tf2::Transform pose;
     tf2::fromMsg(position.pose, pose);
@@ -382,12 +394,25 @@ geometry_msgs::msg::TwistStamped NeoLocalPlanner::computeVelocityCommands(
         tmp.pose.orientation.w = tmp1.rotation.w;
         local_path.poses.push_back(tmp);
       }
+
+      // Get the yaw angles from the first and last poses
+      double yaw_first = createYawFromQuat(position.pose.orientation);
+      double yaw_last = createYawFromQuat(local_path.poses.back().pose.orientation);
+
+      // double yaw_last = createQuaternionFromYaw(path.poses.back().pose.orientation);
       // Cropping the local plan to the specified lookahead distance
-      if (obstacle_dist >= lookahead_dist ||
-           m_state == state_t::STATE_ROTATING ||
-           obstacle_dist >= dist_goal
-        ) {
+      if (obstacle_dist >= lookahead_dist * speed.linear.x ||
+        m_state == state_t::STATE_ROTATING ||
+        obstacle_dist >= dist_goal ||
+        fabs(angles::shortest_angular_distance(yaw_first, yaw_last)) > M_PI / 6)
+      {
         in_max_lookahead_dist = true;
+        if (fabs(angles::shortest_angular_distance(yaw_first, yaw_last)) > M_PI / 6) {
+          local_path.poses.pop_back();
+          yaw_first = createYawFromQuat(local_path.poses.front().pose.orientation);
+          yaw_last = createYawFromQuat(local_path.poses.back().pose.orientation);
+          debug_yaw = fabs(angles::shortest_angular_distance(yaw_first, yaw_last));
+        }
       }
 
       if (!is_contained || have_obstacle) {
@@ -398,13 +423,30 @@ geometry_msgs::msg::TwistStamped NeoLocalPlanner::computeVelocityCommands(
       if (!m_allow_reversing) {
         pose = tf2::Transform(
           createQuaternionFromYaw(tf2::getYaw(pose.getRotation()) + start_yawrate * delta_time),
-          pose * tf2::Vector3(delta_move, 0, 0));
+          pose * tf2::Vector3(start_vel_x * delta_time, start_vel_y * delta_time, 0));
       } else {
         pose = tf2::Transform(
           createQuaternionFromYaw(tf2::getYaw(pose.getRotation()) + start_yawrate * delta_time),
-          pose * tf2::Vector3(m_robot_direction * delta_move, 0, 0));
+          pose * tf2::Vector3(start_vel_x * delta_time, start_vel_y * delta_time, 0));
       }
+
+      // Interpolating the spline further
+      geometry_msgs::msg::Pose msg_curr_pose;
+      geometry_msgs::msg::Pose msg_last_pose;
+
+      tf2::toMsg(pose, msg_curr_pose);
+      tf2::toMsg(last_pose, msg_last_pose);
+
+      delta_move = nav2_util::geometry_utils::euclidean_distance(
+        msg_curr_pose.position,
+        msg_last_pose.position
+      );
+
       obstacle_dist += delta_move;
+
+      if (obstacle_dist == 0) {
+        break;
+      }
     }
   }
   m_local_plan_pub->publish(local_path);
@@ -468,10 +510,17 @@ geometry_msgs::msg::TwistStamped NeoLocalPlanner::computeVelocityCommands(
 
   // Check if the the robot footprint is in obstacle
   double footprint_cost = collision_checker_->footprintCostAtPose(
-    position.pose.position.x,
-    position.pose.position.y,
-    tf2::getYaw(position.pose.orientation),
+    local_path.poses.back().pose.position.x,
+    local_path.poses.back().pose.position.y,
+    tf2::getYaw(local_path.poses.back().pose.orientation),
     costmap_ros_->getRobotFootprint());
+
+  if (footprint_cost == nav2_costmap_2d::LETHAL_OBSTACLE) {
+    RCLCPP_WARN_THROTTLE(
+      logger_, *clock_, 1.0,
+      "Obstacle ahead - going to recovery behaviour");
+    throw nav2_core::NoValidControl("Detected collision ahead!");
+  }
 
   // Condition to check for a spotaneous change in the goal
   if (m_reset_lastvel && speed.linear.x != 0.0 &&
@@ -484,7 +533,7 @@ geometry_msgs::msg::TwistStamped NeoLocalPlanner::computeVelocityCommands(
   }
 
   // compute errors
-  const double goal_dist = (local_plan.back().getOrigin() - actual_pos).length(); //check
+  const double goal_dist = (local_plan.back().getOrigin() - actual_pos).length();
   const tf2::Vector3 pos_error =
     tf2::Transform(createQuaternionFromYaw(actual_yaw), actual_pos).inverse() * target_pos;
 

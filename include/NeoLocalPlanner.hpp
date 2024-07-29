@@ -189,7 +189,7 @@ private:
   uint64_t m_update_counter = 0;
   double m_last_control_values[3] = {};
   geometry_msgs::msg::Twist m_last_cmd_vel;
-    tf2::Duration transform_tolerance_;
+  tf2::Duration transform_tolerance_;
 
 protected:
   double acc_lim_x = 0;
