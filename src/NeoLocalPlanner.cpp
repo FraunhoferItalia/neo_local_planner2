@@ -711,14 +711,12 @@ geometry_msgs::msg::TwistStamped NeoLocalPlanner::computeVelocityCommands(
   is_emergency_brake = is_emergency_brake && fabs(control_vel_x) >= 0;
 
   // apply low pass filter
-
   control_vel_x = control_vel_x * low_pass_gain + m_last_control_values[0] * (1 - low_pass_gain);
   control_vel_y = control_vel_y * low_pass_gain + m_last_control_values[1] * (1 - low_pass_gain);
   control_yawrate = control_yawrate * low_pass_gain + m_last_control_values[2] *
     (1 - low_pass_gain);
 
   // apply acceleration limits
-
   if (m_robot_direction == -1.0) {
     if (!is_goal_target) {
       control_vel_x = fmin(fabs(control_vel_x), fabs(m_last_cmd_vel.linear.x + acc_lim_x * dt));
