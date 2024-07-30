@@ -232,9 +232,9 @@ geometry_msgs::msg::TwistStamped NeoLocalPlanner::computeVelocityCommands(
       "lookupTransform(m_base_frame, m_global_frame) failed");
   }
 
-  geometry_msgs::msg::PoseStamped local_goal_pose;
+  geometry_msgs::msg::PoseStamped global_robot_pose;
   try {
-    tf_->transform(position, local_goal_pose, "map", transform_tolerance_);
+    tf_->transform(position, global_robot_pose, "map", transform_tolerance_);
   } catch (tf2::TransformException & ex) {
     RCLCPP_WARN_THROTTLE(
       logger_, *clock_, 1.0,
@@ -242,7 +242,7 @@ geometry_msgs::msg::TwistStamped NeoLocalPlanner::computeVelocityCommands(
   }
   auto global_goal_pose = m_global_plan.poses.back();
   double dist_goal = nav2_util::geometry_utils::euclidean_distance(
-    local_goal_pose.pose.position,
+    global_robot_pose.pose.position,
     global_goal_pose.pose.position
   );
 
