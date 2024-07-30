@@ -354,107 +354,6 @@ geometry_msgs::msg::TwistStamped NeoLocalPlanner::computeVelocityCommands(
   local_path.header.frame_id = m_local_frame;
   local_path.header.stamp = m_odometry->header.stamp;
 
-  // compute obstacle distance
-  bool have_obstacle = false;
-  double obstacle_dist = 0;
-  double obstacle_cost = 0;
-  double debug_yaw = 0.0;
-  {
-    double delta_move = 0.0;
-    const double delta_time = 0.01;
-
-    tf2::Transform pose;
-    tf2::fromMsg(position.pose, pose);
-    tf2::Transform last_pose = pose;
-    bool in_max_lookahead_dist = false;
-
-    while (!in_max_lookahead_dist) {
-      const double cost = compute_max_line_cost(costmap_, last_pose.getOrigin(), pose.getOrigin());
-
-      bool is_contained = false;
-      {
-        unsigned int dummy[2] = {};
-        is_contained = costmap_->worldToMap(
-          pose.getOrigin().x(),
-          pose.getOrigin().y(), dummy[0], dummy[1]);
-      }
-      have_obstacle = cost >= max_cost;
-      obstacle_cost = fmax(obstacle_cost, cost);
-
-      {
-        geometry_msgs::msg::PoseStamped tmp;
-        auto tmp1 = tf2::toMsg(pose);
-        tmp.header = position.header;
-        tmp.pose.position.x = tmp1.translation.x;
-        tmp.pose.position.y = tmp1.translation.y;
-        tmp.pose.position.z = tmp1.translation.z;
-        tmp.pose.orientation.x = tmp1.rotation.x;
-        tmp.pose.orientation.y = tmp1.rotation.y;
-        tmp.pose.orientation.z = tmp1.rotation.z;
-        tmp.pose.orientation.w = tmp1.rotation.w;
-        local_path.poses.push_back(tmp);
-      }
-
-      // Get the yaw angles from the first and last poses
-      double yaw_first = createYawFromQuat(position.pose.orientation);
-      double yaw_last = createYawFromQuat(local_path.poses.back().pose.orientation);
-
-      // double yaw_last = createQuaternionFromYaw(path.poses.back().pose.orientation);
-      // Cropping the local plan to the specified lookahead distance
-      if (obstacle_dist >= lookahead_dist * speed.linear.x ||
-        m_state == state_t::STATE_ROTATING ||
-        obstacle_dist >= dist_goal ||
-        fabs(angles::shortest_angular_distance(yaw_first, yaw_last)) > M_PI / 6)
-      {
-        in_max_lookahead_dist = true;
-        if (fabs(angles::shortest_angular_distance(yaw_first, yaw_last)) > M_PI / 6) {
-          local_path.poses.pop_back();
-          yaw_first = createYawFromQuat(local_path.poses.front().pose.orientation);
-          yaw_last = createYawFromQuat(local_path.poses.back().pose.orientation);
-          debug_yaw = fabs(angles::shortest_angular_distance(yaw_first, yaw_last));
-        }
-      }
-
-      if (!is_contained || have_obstacle) {
-        break;
-      }
-
-      last_pose = pose;
-      if (!m_allow_reversing) {
-        pose = tf2::Transform(
-          createQuaternionFromYaw(tf2::getYaw(pose.getRotation()) + start_yawrate * delta_time),
-          pose * tf2::Vector3(start_vel_x * delta_time, start_vel_y * delta_time, 0));
-      } else {
-        pose = tf2::Transform(
-          createQuaternionFromYaw(tf2::getYaw(pose.getRotation()) + start_yawrate * delta_time),
-          pose * tf2::Vector3(m_robot_direction * start_vel_x * delta_time, start_vel_y * delta_time, 0));
-      }
-
-      // Interpolating the spline further
-      geometry_msgs::msg::Pose msg_curr_pose;
-      geometry_msgs::msg::Pose msg_last_pose;
-
-      tf2::toMsg(pose, msg_curr_pose);
-      tf2::toMsg(last_pose, msg_last_pose);
-
-      delta_move = nav2_util::geometry_utils::euclidean_distance(
-        msg_curr_pose.position,
-        msg_last_pose.position
-      );
-
-      obstacle_dist += delta_move;
-
-      if (obstacle_dist == 0) {
-        break;
-      }
-    }
-  }
-  m_local_plan_pub->publish(local_path);
-
-  obstacle_dist -= min_stop_dist;
-
-  // publish local plan
-
   // compute situational max velocities
   const double max_trans_vel =
     fmax(
@@ -498,7 +397,7 @@ geometry_msgs::msg::TwistStamped NeoLocalPlanner::computeVelocityCommands(
   if (m_robot_direction == 1 || is_goal_target) {
     yaw_error = angles::shortest_angular_distance(actual_yaw, target_yaw);
   } else {
-    yaw_error = angles::shortest_angular_distance(actual_yaw + 3.14, target_yaw);
+    yaw_error = angles::shortest_angular_distance(actual_yaw + M_PI, target_yaw);
   }
 
   // For debugging
@@ -507,6 +406,130 @@ geometry_msgs::msg::TwistStamped NeoLocalPlanner::computeVelocityCommands(
   m_carrot_pose.point.y = target_pos.y();
 
   m_lookahead_point_pub->publish(m_carrot_pose);
+
+  // compute obstacle distance and orientation
+  bool have_obstacle = false;
+  double obstacle_dist = 0.0;
+  double obstacle_cost = 0.0;
+  double yaw_projection = 0.0;
+  {
+    double delta_move = 0.0;
+    const double delta_time = 0.01;
+
+    tf2::Transform pose;
+    tf2::fromMsg(position.pose, pose);
+    tf2::Transform last_pose = pose;
+    bool in_max_lookahead_dist = false;
+
+    while (!in_max_lookahead_dist) {
+      const double cost = compute_max_line_cost(costmap_, last_pose.getOrigin(), pose.getOrigin());
+
+      bool is_contained = false;
+      {
+        unsigned int dummy[2] = {};
+        is_contained = costmap_->worldToMap(
+          pose.getOrigin().x(),
+          pose.getOrigin().y(), dummy[0], dummy[1]);
+      }
+      have_obstacle = cost >= max_cost;
+      obstacle_cost = fmax(obstacle_cost, cost);
+
+      {
+        geometry_msgs::msg::PoseStamped tmp;
+        auto tmp1 = tf2::toMsg(pose);
+        tmp.header = position.header;
+        tmp.pose.position.x = tmp1.translation.x;
+        tmp.pose.position.y = tmp1.translation.y;
+        tmp.pose.position.z = tmp1.translation.z;
+        tmp.pose.orientation.x = tmp1.rotation.x;
+        tmp.pose.orientation.y = tmp1.rotation.y;
+        tmp.pose.orientation.z = tmp1.rotation.z;
+        tmp.pose.orientation.w = tmp1.rotation.w;
+        local_path.poses.push_back(tmp);
+      }
+
+      // Get the yaw angles from the first and last poses
+      double yaw_first = createYawFromQuat(position.pose.orientation);
+      double yaw_last = createYawFromQuat(local_path.poses.back().pose.orientation);
+
+      // Cropping the local plan to the specified lookahead distance
+      if (obstacle_dist >= lookahead_dist * speed.linear.x ||
+        obstacle_dist >= dist_goal ||
+        m_state == state_t::STATE_ROTATING ||
+        fabs(angles::shortest_angular_distance(yaw_first, yaw_last)) > M_PI / 6)
+      {
+        in_max_lookahead_dist = true;
+        if (fabs(angles::shortest_angular_distance(yaw_first, yaw_last)) > M_PI / 6 &&
+          m_state != state_t::STATE_ROTATING)
+        {
+          local_path.poses.pop_back();
+          yaw_first = createYawFromQuat(local_path.poses.front().pose.orientation);
+          yaw_last = createYawFromQuat(local_path.poses.back().pose.orientation);
+        }
+      }
+
+      if (!is_contained || have_obstacle) {
+        break;
+      }
+
+      // Updating the local plan - when only rotation is required
+      if (fabs(yaw_error) > M_PI / 6 && in_max_lookahead_dist) {
+        double sign = yaw_error >= 0.0 ? 1.0 : -1.0;
+        while (fabs(angles::shortest_angular_distance(yaw_projection, yaw_error)) > M_PI / 6) {
+          // Update yaw error based on the yaw rate and time step
+          yaw_projection += sign * max_rot_vel * 0.01;
+
+          // Update the local plan
+          auto quat_conv = pose.getRotation() * createQuaternionFromYaw(yaw_projection);
+          geometry_msgs::msg::Quaternion quat_msg;
+          quat_msg = tf2::toMsg(quat_conv.normalize());
+          geometry_msgs::msg::PoseStamped tmp;
+          tmp.header = position.header;
+          tmp.pose.position = position.pose.position;
+          tmp.pose.orientation = quat_msg;
+          local_path.poses.push_back(tmp);
+        }
+      }
+
+      last_pose = pose;
+      if (!m_allow_reversing) {
+        pose = tf2::Transform(
+          createQuaternionFromYaw(tf2::getYaw(pose.getRotation()) + start_yawrate * delta_time),
+          pose * tf2::Vector3(start_vel_x * delta_time, start_vel_y * delta_time, 0));
+      } else {
+        pose = tf2::Transform(
+          createQuaternionFromYaw(tf2::getYaw(pose.getRotation()) + start_yawrate * delta_time),
+          pose * tf2::Vector3(
+            m_robot_direction * start_vel_x * delta_time, start_vel_y * delta_time,
+            0));
+      }
+
+      // Interpolating the spline further
+      geometry_msgs::msg::Pose msg_curr_pose;
+      geometry_msgs::msg::Pose msg_last_pose;
+
+      tf2::toMsg(pose, msg_curr_pose);
+      tf2::toMsg(last_pose, msg_last_pose);
+
+      delta_move = nav2_util::geometry_utils::euclidean_distance(
+        msg_curr_pose.position,
+        msg_last_pose.position
+      );
+
+      obstacle_dist += delta_move;
+
+      if (obstacle_dist == 0 &&
+        m_state != state_t::STATE_ROTATING)
+      {
+        break;
+      }
+    }
+  }
+
+  // Publish local plan
+  m_local_plan_pub->publish(local_path);
+
+  obstacle_dist -= min_stop_dist;
 
   // Check if the the robot footprint is in obstacle
   double footprint_cost = collision_checker_->footprintCostAtPose(
