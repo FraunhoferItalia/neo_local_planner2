@@ -796,6 +796,10 @@ NeoLocalPlanner::dynamicParametersCallback(
       } else if (param_name == plugin_name_ + ".emergency_acc_lim_x") {
         emergency_acc_lim_x = parameter.as_double();
       }
+    } else if (param_type == ParameterType::PARAMETER_BOOL) {
+      if (param_name == plugin_name_ + ".differential_drive") {
+        differential_drive = parameter.as_bool(); 
+      }
     }
   }
   result.successful = true;
