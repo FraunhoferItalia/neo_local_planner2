@@ -253,6 +253,13 @@ geometry_msgs::msg::TwistStamped NeoLocalPlanner::computeVelocityCommands(
       acc_lim_x = -1.0 * acc_lim_x;
     }
   }
+	if (!m_allow_reversing) {
+		count = 0;
+		m_robot_direction = 1.0;
+		if(acc_lim_x < 0.0) {
+			acc_lim_x = -1.0 * acc_lim_x;
+		} 
+	}
 
   // get latest local pose
   tf2::Transform local_pose;
@@ -665,6 +672,14 @@ geometry_msgs::msg::TwistStamped NeoLocalPlanner::computeVelocityCommands(
     cmd_vel.linear.x = fmin(
       fmax(control_vel_x, min_vel_x),
       max_vel_x);
+  }
+
+  if (m_robot_direction == -1.0 and differential_drive) {
+		if(yaw_error < 0 and control_yawrate > 0) {
+			control_yawrate = - control_yawrate;
+		} else if (yaw_error > 0 and control_yawrate < 0) {
+			control_yawrate = - control_yawrate;
+		}
   }
 
   cmd_vel.linear.y = fmin(fmax(control_vel_y, min_vel_y), max_vel_y);
