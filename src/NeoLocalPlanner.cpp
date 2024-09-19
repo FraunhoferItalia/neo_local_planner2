@@ -407,7 +407,8 @@ geometry_msgs::msg::TwistStamped NeoLocalPlanner::computeVelocityCommands(
     fmax(max_vel_theta * (max_cost - center_cost) / max_cost, min_vel_theta);
 
   // find closest point on path to future position
-  auto iter_target = find_closest_point(local_plan.cbegin(), local_plan.cend(), actual_pos);
+  auto iter_actual = find_closest_point(local_plan.cbegin(), local_plan.cend(), actual_pos);
+  auto iter_target = iter_actual;
 
   // check if goal target
   bool is_goal_target = false;
@@ -423,19 +424,19 @@ geometry_msgs::msg::TwistStamped NeoLocalPlanner::computeVelocityCommands(
   }
   // figure out target orientation
   double target_yaw = 0;
+  auto iter_next = move_along_path(iter_actual, local_plan.cend(), lookahead_dist);
   if (is_goal_target) {
     // take goal orientation
     target_yaw = tf2::getYaw(iter_target->getRotation());
   } else {
     // compute path based target orientation
-    auto iter_next = move_along_path(iter_target, local_plan.cend(), lookahead_dist);
     target_yaw = ::atan2(
       iter_next->getOrigin().y() - iter_target->getOrigin().y(),
       iter_next->getOrigin().x() - iter_target->getOrigin().x());
   }
 
   // get target position
-  const tf2::Vector3 target_pos = iter_target->getOrigin();
+  const tf2::Vector3 target_pos = iter_next->getOrigin();
   double yaw_error = 0.0;
 
   if (m_robot_direction == 1 || is_goal_target) {
