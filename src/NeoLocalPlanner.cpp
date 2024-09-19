@@ -799,6 +799,8 @@ NeoLocalPlanner::dynamicParametersCallback(
     } else if (param_type == ParameterType::PARAMETER_BOOL) {
       if (param_name == plugin_name_ + ".differential_drive") {
         differential_drive = parameter.as_bool(); 
+      } else if (param_name == plugin_name_ + ".allow_reversing") {
+	      m_allow_reversing = parameter.as_bool();
       }
     }
   }
