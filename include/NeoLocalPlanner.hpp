@@ -232,6 +232,7 @@ protected:
   double emergency_acc_lim_x = 0.0;
   bool m_reset_lastvel = false;
   bool m_allow_reversing = false;
+  bool m_add_namespace_to_frames = true;
   double m_robot_direction = 1.0;
   std::string odom_topic = "odom";
   std::string local_plan_topic = "local_plan";

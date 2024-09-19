@@ -1032,6 +1032,7 @@ void NeoLocalPlanner::configure(
   node->get_parameter_or(plugin_name_ + ".emergency_acc_lim_x", emergency_acc_lim_x, 0.5);
   node->get_parameter_or(plugin_name_ + ".differential_drive", differential_drive, true);
   node->get_parameter_or(plugin_name_ + ".allow_reversing", m_allow_reversing, false);
+  node->get_parameter_or(plugin_name_ + ".add_namespace_to_frames", m_add_namespace_to_frames, true);
 
   node->get_parameter(plugin_name_ + ".odom_topic", odom_topic);
   node->get_parameter(plugin_name_ + ".local_plan_topic", local_plan_topic);
@@ -1049,17 +1050,19 @@ void NeoLocalPlanner::configure(
   plugin_name_ = name;
   logger_ = node->get_logger();
 
-  std::string robot_namespace(node->get_namespace());
+  if (m_add_namespace_to_frames) {
+    std::string robot_namespace(node->get_namespace());
 
-  // removing the unnecessary "/" from the namespace
-  robot_namespace.erase(
-    std::remove(
-      robot_namespace.begin(),
-      robot_namespace.end(), '/'),
-    robot_namespace.end());
+    // removing the unnecessary "/" from the namespace
+    robot_namespace.erase(
+      std::remove(
+        robot_namespace.begin(),
+        robot_namespace.end(), '/'),
+      robot_namespace.end());
 
-  m_local_frame = robot_namespace + m_local_frame;
-  m_base_frame = robot_namespace + m_base_frame;
+    m_local_frame = robot_namespace + m_local_frame;
+    m_base_frame = robot_namespace + m_base_frame;
+  }
 
   // Creating odometery subscriber and local plan publisher
   m_odom_sub = node->create_subscription<nav_msgs::msg::Odometry>(
