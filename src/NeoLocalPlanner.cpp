@@ -830,11 +830,11 @@ bool NeoLocalPlanner::reset_lastvel(nav_msgs::msg::Path m_global_plan, nav_msgs:
   {
     return false;
   } else {
-    m_last_control_values[0] = 0;
-    m_last_control_values[1] = 0;
-    m_last_control_values[2] = 0;
-    m_last_cmd_vel = geometry_msgs::msg::Twist();
-    count = 0;
+    // m_last_control_values[0] = 0;
+    // m_last_control_values[1] = 0;
+    // m_last_control_values[2] = 0;
+    // m_last_cmd_vel = geometry_msgs::msg::Twist();
+    // count = 0;
     return true;
   }
 }
