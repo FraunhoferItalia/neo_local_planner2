@@ -983,8 +983,8 @@ void NeoLocalPlanner::configure(
   node->get_parameter_or(plugin_name_ + ".max_vel_y", max_vel_y, 0.5);
   node->get_parameter_or(plugin_name_ + ".min_rot_vel", min_vel_theta, 0.1);
   node->get_parameter_or(plugin_name_ + ".max_rot_vel", max_vel_theta, 0.5);
-  node->get_parameter_or(plugin_name_ + ".min_trans_vel", min_vel_trans, 0.1);
-  node->get_parameter_or(plugin_name_ + ".max_trans_vel", max_vel_trans, 0.5);
+  node->get_parameter_or(plugin_name_ + ".min_vel_trans", min_vel_trans, 0.1);
+  node->get_parameter_or(plugin_name_ + ".max_vel_trans", max_vel_trans, 0.5);
   node->get_parameter_or(plugin_name_ + ".rot_stopped_vel", theta_stopped_vel, 0.05);
   node->get_parameter_or(plugin_name_ + ".trans_stopped_vel", trans_stopped_vel, 0.05);
   node->get_parameter_or(plugin_name_ + ".yaw_goal_tolerance", yaw_goal_tolerance, 0.02);
